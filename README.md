@@ -148,6 +148,7 @@ The system follows a modular MERN architecture:
 
 ## System Architecture
 
+
 ![WhatsApp Image 2026-02-13 at 21 51 53](https://github.com/user-attachments/assets/72ac021f-c9a3-4c91-8979-3811274cb164)
 
 
