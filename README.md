@@ -1,5 +1,4 @@
 #  Beacon – AI-Driven Agile Optimization Engine Using MERN Stack
-Here is your README.md content with all emojis removed and formatted professionally for submission or GitHub.
 
 Beacon – AI-Driven Agile Optimization Engine
 GLA University, Mathura
