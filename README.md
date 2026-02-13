@@ -21,12 +21,6 @@ Abhishek Singh Sir
 
 ---
 
-## Project Title
-
-**Beacon – AI-Driven Agile Optimization Engine Using MERN Stack**
-
----
-
 ## Abstract
 
 Beacon is an AI-driven Agile Optimization Engine developed using the MERN stack (MongoDB, Express.js, React.js, Node.js).
