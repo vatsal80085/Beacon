@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const sprintAnalyticsSchema = new mongoose.Schema(
   {
@@ -24,7 +24,7 @@ const sprintAnalyticsSchema = new mongoose.Schema(
 
 sprintAnalyticsSchema.index({ sprintId: 1 });
 
-module.exports = mongoose.model(
+export default mongoose.model(
   "SprintAnalytics",
   sprintAnalyticsSchema
 );

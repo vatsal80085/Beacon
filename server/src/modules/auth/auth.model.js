@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const authSessionSchema = new mongoose.Schema(
   {
@@ -28,4 +28,7 @@ const authSessionSchema = new mongoose.Schema(
 authSessionSchema.index({ userId: 1 });
 authSessionSchema.index({ refreshToken: 1 });
 
-module.exports = mongoose.model("AuthSession", authSessionSchema);
+export default mongoose.model(
+  "AuthSession",
+  authSessionSchema
+);

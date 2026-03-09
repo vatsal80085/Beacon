@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const taskSchema = new mongoose.Schema(
   {
@@ -58,4 +58,8 @@ taskSchema.index({ sprintId: 1 });
 taskSchema.index({ assignedTo: 1 });
 taskSchema.index({ status: 1 });
 
-module.exports = mongoose.model("Task", taskSchema);
+
+export default mongoose.model(
+  "Task",
+  taskSchema
+);

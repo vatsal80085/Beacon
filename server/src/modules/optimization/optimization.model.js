@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const optimizationSchema = new mongoose.Schema(
   {
@@ -16,7 +16,7 @@ const optimizationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model(
+export default mongoose.model(
   "OptimizationSuggestion",
   optimizationSchema
 );
