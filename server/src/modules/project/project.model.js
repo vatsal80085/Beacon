@@ -2,8 +2,16 @@ import mongoose from "mongoose";
 
 const projectSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    description: String,
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["PLANNED", "ACTIVE", "COMPLETED"],
@@ -14,28 +22,18 @@ const projectSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
-    members: [
+    teamMemberIds: [
       {
-        userId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-        role: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
       },
     ],
-    metrics: {
-      totalTasks: { type: Number, default: 0 },
-      completedTasks: { type: Number, default: 0 },
-      blockedTasks: { type: Number, default: 0 },
-      avgVelocity: { type: Number, default: 0 },
-      riskIndex: { type: Number, default: 0 },
-    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-export default mongoose.model(
-  "Project",
-  projectSchema
-);
+projectSchema.index({ createdBy: 1 });
+
+export default mongoose.model("Project", projectSchema);

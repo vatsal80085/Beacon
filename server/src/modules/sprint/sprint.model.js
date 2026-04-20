@@ -5,9 +5,18 @@ const sprintSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
+      required: true,
     },
-    name: { type: String, required: true },
-    goal: String,
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    goal: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     startDate: Date,
     endDate: Date,
     status: {
@@ -15,16 +24,15 @@ const sprintSchema = new mongoose.Schema(
       enum: ["PLANNED", "ACTIVE", "COMPLETED"],
       default: "PLANNED",
     },
-    velocity: {
-      committedStoryPoints: { type: Number, default: 0 },
-      completedStoryPoints: { type: Number, default: 0 },
-      score: { type: Number, default: 0 },
+    committedStoryPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-export default mongoose.model(
-  "Sprint",
-  sprintSchema
-);
+sprintSchema.index({ projectId: 1, status: 1 });
+
+export default mongoose.model("Sprint", sprintSchema);

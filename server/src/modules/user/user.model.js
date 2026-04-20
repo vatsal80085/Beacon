@@ -1,38 +1,57 @@
-const mongoose = require('mongoose')
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  passwordHash: {
-    type: String,
-    required: true,
-  },
-  role: {
-    type: String,
-    enum: ["ADMIN", "PROJECT_MANAGER", "DEVELOPER", "QA"],
-    default: "DEVELOPER",
-  },
-  status: {
-    type: String,
-    enum: ["ACTIVE", "INACTIVE"],
-    default: "ACTIVE",
-  },
-  projects: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
-    },
-  ],
-},
-  { timestamps: true })
+import mongoose from "mongoose";
 
-export default mongoose.model(
-  "User",
-  userSchema
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    uniqueCode: {
+      type: String,
+      required: true,
+      unique: true,
+      uppercase: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    passwordHash: {
+      type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ["ADMIN", "MANAGER", "DEVELOPER", "QA"],
+      default: "DEVELOPER",
+    },
+    capacityPerSprint: {
+      type: Number,
+      default: 18,
+      min: 0,
+    },
+    status: {
+      type: String,
+      enum: ["ACTIVE", "INACTIVE"],
+      default: "ACTIVE",
+    },
+    avatarHue: {
+      type: Number,
+      default: 0,
+    },
+    projects: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Project",
+      },
+    ],
+  },
+  { timestamps: true },
 );
+
+export default mongoose.model("User", userSchema);

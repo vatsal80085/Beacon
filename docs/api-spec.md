@@ -46,6 +46,15 @@ PATCH  /projects/:id
 DELETE /projects/:id
 
 POST   /projects/:id/members
+POST   /projects/:id/members/invite
+GET    /projects/:id/invitations
+
+---
+
+# INVITATIONS
+
+GET    /users/:id/invitations
+PATCH  /invitations/:id
 
 ---
 

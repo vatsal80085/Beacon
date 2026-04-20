@@ -7,6 +7,7 @@ All models are implemented using Mongoose.
 ## 1. User
 
 - name: String (required)
+- uniqueCode: String (required, unique) // format: BCN-0001
 - email: String (required, unique)
 - password: String (required, hashed)
 - role: Enum ["ADMIN", "MANAGER", "DEVELOPER"]
@@ -81,3 +82,16 @@ Sprint → has many Tasks
 - riskScore: Number
 - overloadedUsers: [ObjectId]
 - generatedAt: Date
+
+---
+
+## 7. Invitation
+
+- projectId: ObjectId (Project)
+- inviteeUserId: ObjectId (User)
+- inviteeUniqueCode: String (required)
+- invitedByUserId: ObjectId (User)
+- role: Enum ["MANAGER", "DEVELOPER", "QA"]
+- status: Enum ["PENDING", "ACCEPTED", "DECLINED"]
+- createdAt: Date
+- respondedAt: Date | null

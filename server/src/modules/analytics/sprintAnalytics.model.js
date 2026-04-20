@@ -8,23 +8,43 @@ const sprintAnalyticsSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-
-    committedStoryPoints: Number,
-    completedStoryPoints: Number,
-    velocityScore: Number,
-
-    completionRate: Number,
-
-    riskScore: Number,
-
+    velocity: {
+      type: Number,
+      default: 0,
+    },
+    healthScore: {
+      type: Number,
+      default: 0,
+    },
+    riskScore: {
+      type: Number,
+      default: 0,
+    },
+    completionRate: {
+      type: Number,
+      default: 0,
+    },
+    capacityUtilization: {
+      type: Number,
+      default: 0,
+    },
+    committedStoryPoints: {
+      type: Number,
+      default: 0,
+    },
+    completedStoryPoints: {
+      type: Number,
+      default: 0,
+    },
+    overloadedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     lastCalculatedAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-sprintAnalyticsSchema.index({ sprintId: 1 });
-
-export default mongoose.model(
-  "SprintAnalytics",
-  sprintAnalyticsSchema
-);
+export default mongoose.model("SprintAnalytics", sprintAnalyticsSchema);

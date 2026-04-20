@@ -1,20 +1,38 @@
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import app from "./app.js";
+import connectDB from "./config/db.js";
+import { seedDatabase } from "./utils/seedData.js";
 
-dotenv.config({ path: "../.env" });
+dotenv.config();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB connected");
+const startServer = async () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is missing. Add it to server/.env before starting the backend.");
+  }
 
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Database connection failed:", err);
+  await connectDB();
+  await seedDatabase();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
+};
+
+startServer().catch((error) => {
+  console.error("Server startup failed.");
+  console.error(error.message);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION! Shutting down...");
+  console.error(err.name, err.message);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION! Shutting down...");
+  console.error(err.name, err.message);
+  process.exit(1);
+});
