@@ -1,21 +1,22 @@
 import { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import Button from "../components/common/Button.jsx";
 import { useAuth } from "../hooks/useAuth.js";
 
 function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, isAuthenticated } = useAuth();
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("DEVELOPER");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const handleSubmit = async (event) => {
@@ -25,7 +26,7 @@ function Signup() {
 
     try {
       await register({ name, email, password, role });
-      navigate("/", { replace: true });
+      navigate("/app", { replace: true });
     } catch {
       setError("Unable to create account right now. Please try again.");
     } finally {

@@ -95,7 +95,7 @@ function Dashboard() {
           </p>
         </div>
         <div className="page-actions">
-          <Button as={Link} to="/projects" variant="secondary" size="sm">
+          <Button as={Link} to="/app/projects" variant="secondary" size="sm">
             View Projects
           </Button>
         </div>

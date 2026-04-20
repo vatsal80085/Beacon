@@ -266,10 +266,10 @@ function Backlog() {
     const nextScope = event.target.value;
     setSelectedScope(nextScope);
     if (nextScope === ALL_ONGOING_SCOPE) {
-      navigate("/backlog");
+      navigate("/app/backlog");
       return;
     }
-    navigate(`/projects/${nextScope}/backlog`);
+    navigate(`/app/projects/${nextScope}/backlog`);
   };
 
   const handleSubmitTask = async (event) => {
@@ -423,7 +423,7 @@ function Backlog() {
             Add Backlog Story
           </Button>
           {project?.id ? (
-            <Button as={Link} to={`/projects/${project.id}`} variant="ghost" size="sm">
+            <Button as={Link} to={`/app/projects/${project.id}`} variant="ghost" size="sm">
               Project Details
             </Button>
           ) : null}

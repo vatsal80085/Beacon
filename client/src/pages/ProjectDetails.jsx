@@ -231,7 +231,7 @@ function ProjectDetails() {
           <Button type="button" variant="primary" size="sm" onClick={() => setShowSprintCreator((value) => !value)}>
             {showSprintCreator ? "Close Sprint Form" : "Create Sprint"}
           </Button>
-          <Button as={Link} to={`/projects/${project.id}/backlog`} variant="secondary" size="sm">
+          <Button as={Link} to={`/app/projects/${project.id}/backlog`} variant="secondary" size="sm">
             Open Backlog
           </Button>
         </div>
@@ -560,7 +560,7 @@ function ProjectDetails() {
                     Complete
                   </Button>
                 ) : null}
-                <Button as={Link} to={`/sprints/${sprint.id}`} variant="ghost" size="sm">
+                <Button as={Link} to={`/app/sprints/${sprint.id}`} variant="ghost" size="sm">
                   View Sprint
                 </Button>
               </div>

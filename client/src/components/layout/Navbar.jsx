@@ -17,7 +17,7 @@ function Navbar() {
   const [pendingInvites, setPendingInvites] = useState(0);
 
   const crumbs = useMemo(() => {
-    const segments = location.pathname.split("/").filter(Boolean);
+    const segments = location.pathname.split("/").filter((segment) => segment && segment !== "app");
     if (segments.length === 0) {
       return ["Dashboard"];
     }
@@ -79,7 +79,7 @@ function Navbar() {
       </div>
 
       <div className="topbar-actions">
-        <Button as={Link} to="/invitations" variant="ghost" size="sm">
+        <Button as={Link} to="/app/invitations" variant="ghost" size="sm">
           Invites {pendingInvites > 0 ? `(${pendingInvites})` : ""}
         </Button>
         <div className="user-pill">
