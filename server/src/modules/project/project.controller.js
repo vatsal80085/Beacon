@@ -9,8 +9,8 @@ import {
   updateProject,
 } from "./project.service.js";
 
-export const listProjects = async (_req, res) => sendSuccess(res, await getProjects());
-export const readProject = async (req, res) => sendSuccess(res, await getProjectById(req.params.id));
+export const listProjects = async (req, res) => sendSuccess(res, await getProjects(req.user.id));
+export const readProject = async (req, res) => sendSuccess(res, await getProjectById(req.params.id, req.user.id));
 export const createProjectController = async (req, res) =>
   sendSuccess(res, await createProject(req.body, req.user?.id), "Project created successfully.", 201);
 export const updateProjectController = async (req, res) =>

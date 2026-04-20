@@ -6,15 +6,18 @@ import Invitation from "../invitation/invitation.model.js";
 import { HttpError } from "../../utils/httpError.js";
 import { buildProjectSnapshot, serializeId } from "../analytics/analytics.service.js";
 
-export const getProjects = async () => {
-  const projects = await Project.find({}).sort({ createdAt: -1 }).lean();
+export const getProjects = async (userId) => {
+  const projects = await Project.find({ teamMemberIds: userId }).sort({ createdAt: -1 }).lean();
   return Promise.all(projects.map((project) => buildProjectSnapshot(project)));
 };
 
-export const getProjectById = async (projectId) => {
+export const getProjectById = async (projectId, userId = null) => {
   const project = await Project.findById(projectId).lean();
   if (!project) {
     throw new HttpError(404, "Project not found.");
+  }
+  if (userId && !project.teamMemberIds.some((id) => String(id) === String(userId))) {
+    throw new HttpError(403, "Forbidden");
   }
 
   const snapshot = await buildProjectSnapshot(project);

@@ -5,7 +5,7 @@ import { seedDatabase } from "./utils/seedData.js";
 
 dotenv.config();
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5050;
 
 const startServer = async () => {
   if (!process.env.JWT_SECRET) {
@@ -22,5 +22,17 @@ const startServer = async () => {
 startServer().catch((error) => {
   console.error("Server startup failed.");
   console.error(error.message);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION! Shutting down...");
+  console.error(err.name, err.message);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION! Shutting down...");
+  console.error(err.name, err.message);
   process.exit(1);
 });

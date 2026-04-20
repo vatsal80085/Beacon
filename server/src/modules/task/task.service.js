@@ -1,4 +1,5 @@
 import Task from "./task.model.js";
+import Project from "../project/project.model.js";
 import { HttpError } from "../../utils/httpError.js";
 import { serializeId } from "../analytics/analytics.service.js";
 
@@ -26,9 +27,13 @@ const formatTask = (task) => ({
   assignedTo: task.assignedTo ? serializeId(task.assignedTo) : null,
 });
 
-export const listTasks = async ({ projectId, sprintId }) => {
+export const listTasks = async ({ projectId, sprintId }, userId) => {
   const query = {};
   if (projectId) {
+    const project = await Project.findById(projectId).lean();
+    if (!project || !project.teamMemberIds.some((id) => String(id) === String(userId))) {
+      throw new HttpError(403, "Forbidden");
+    }
     query.projectId = projectId;
   }
   if (sprintId === "backlog") {
@@ -41,10 +46,14 @@ export const listTasks = async ({ projectId, sprintId }) => {
   return tasks.map(formatTask);
 };
 
-export const getTask = async (taskId) => {
+export const getTask = async (taskId, userId) => {
   const task = await Task.findById(taskId);
   if (!task) {
     throw new HttpError(404, "Task not found.");
+  }
+  const project = await Project.findById(task.projectId).lean();
+  if (!project || !project.teamMemberIds.some((id) => String(id) === String(userId))) {
+    throw new HttpError(403, "Forbidden");
   }
   return formatTask(task);
 };

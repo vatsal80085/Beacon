@@ -2,6 +2,7 @@ import Project from "../project/project.model.js";
 import Sprint from "../sprint/sprint.model.js";
 import Task from "../task/task.model.js";
 import User from "../user/user.model.js";
+import { optimizeSprint } from "../optimization/optimization.service.js";
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -147,11 +148,14 @@ export const buildProjectSnapshot = async (project) => {
   };
 };
 
-export const buildDashboardOverview = async () => {
-  const [projects, sprints] = await Promise.all([Project.find({}).lean(), Sprint.find({}).lean()]);
+export const buildDashboardOverview = async (userId) => {
+  const projects = await Project.find({ teamMemberIds: userId }).lean();
+  const projectIds = projects.map(p => p._id);
+  const sprints = await Sprint.find({ projectId: { $in: projectIds } }).lean();
   const snapshots = await Promise.all(projects.map((project) => buildProjectSnapshot(project)));
   const activeSprint = sprints.find((sprint) => sprint.status === "ACTIVE") ?? sprints[0] ?? null;
   const activeSprintAnalytics = activeSprint ? await buildSprintAnalytics(activeSprint._id) : null;
+  const optimization = activeSprint ? await optimizeSprint(activeSprint._id) : null;
 
   let teamLoad = [];
   if (activeSprint) {
@@ -183,6 +187,7 @@ export const buildDashboardOverview = async () => {
           ...activeSprintAnalytics,
         }
       : null,
+    optimization,
     teamLoad,
     projects: snapshots,
   };

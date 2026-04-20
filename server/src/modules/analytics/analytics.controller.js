@@ -7,5 +7,7 @@ export const getProjectAnalyticsController = async (req, res) =>
 export const getSprintAnalyticsController = async (req, res) =>
   sendSuccess(res, await buildSprintAnalytics(req.params.id));
 
-export const getDashboardOverviewController = async (_req, res) =>
-  sendSuccess(res, await buildDashboardOverview());
+export const getDashboardOverviewController = async (req, res) => {
+  const payload = await buildDashboardOverview(req.user.id);
+  sendSuccess(res, payload);
+};

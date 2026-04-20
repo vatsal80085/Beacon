@@ -129,43 +129,49 @@ function Dashboard() {
       </section>
 
       <section className="panel-grid">
-        <Card
-          title={overview.activeSprint.name}
-          subtitle={`${overview.activeSprint.projectName} | ${overview.activeSprint.committedStoryPoints} committed pts`}
-        >
-          <div className="progress-list">
-            <div className="progress-item">
-              <p>Completion</p>
-              <strong>{formatPercent(overview.activeSprint.completionRate)}</strong>
-              <div className="progress-track">
-                <span
-                  className="progress-fill progress-fill-primary"
-                  style={{ width: formatPercent(overview.activeSprint.completionRate) }}
-                />
+        {overview.activeSprint ? (
+          <Card
+            title={overview.activeSprint.name}
+            subtitle={`${overview.activeSprint.projectName} | ${overview.activeSprint.committedStoryPoints} committed pts`}
+          >
+            <div className="progress-list">
+              <div className="progress-item">
+                <p>Completion</p>
+                <strong>{formatPercent(overview.activeSprint.completionRate)}</strong>
+                <div className="progress-track">
+                  <span
+                    className="progress-fill progress-fill-primary"
+                    style={{ width: formatPercent(overview.activeSprint.completionRate) }}
+                  />
+                </div>
+              </div>
+              <div className="progress-item">
+                <p>Capacity Utilization</p>
+                <strong>{formatPercent(overview.activeSprint.capacityUtilization)}</strong>
+                <div className="progress-track">
+                  <span
+                    className="progress-fill progress-fill-warm"
+                    style={{ width: formatPercent(overview.activeSprint.capacityUtilization) }}
+                  />
+                </div>
+              </div>
+              <div className="progress-item">
+                <p>Sprint Health</p>
+                <strong>{Math.round(overview.activeSprint.healthScore)} / 100</strong>
+                <div className="progress-track">
+                  <span
+                    className="progress-fill progress-fill-good"
+                    style={{ width: `${Math.round(overview.activeSprint.healthScore)}%` }}
+                  />
+                </div>
               </div>
             </div>
-            <div className="progress-item">
-              <p>Capacity Utilization</p>
-              <strong>{formatPercent(overview.activeSprint.capacityUtilization)}</strong>
-              <div className="progress-track">
-                <span
-                  className="progress-fill progress-fill-warm"
-                  style={{ width: formatPercent(overview.activeSprint.capacityUtilization) }}
-                />
-              </div>
-            </div>
-            <div className="progress-item">
-              <p>Sprint Health</p>
-              <strong>{Math.round(overview.activeSprint.healthScore)} / 100</strong>
-              <div className="progress-track">
-                <span
-                  className="progress-fill progress-fill-good"
-                  style={{ width: `${Math.round(overview.activeSprint.healthScore)}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card title="No Active Sprint" subtitle="Start a sprint to see progress">
+            <p className="text-muted" style={{ padding: "1rem" }}>You do not have any active sprints.</p>
+          </Card>
+        )}
 
         <Card title="Team Load Balancer" subtitle="Assigned points vs per-sprint capacity">
           <div className="team-load-list">
@@ -196,39 +202,45 @@ function Dashboard() {
       </section>
 
       <section className="panel-grid">
-        <Card title="Optimization Spotlight" subtitle="Highest priority recommended stories">
-          <div className="chip-row">
-            <span className="chip">Success Probability {Math.round(overview.optimization.predictedSuccessProbability)}%</span>
-            <span className="chip">Utilization {formatPercent(overview.optimization.capacityUtilization)}</span>
-            <span className="chip">Feasibility {overview.optimization.feasibilityScore.toFixed(2)}</span>
-          </div>
-
-          <div className="priority-legend">
-            <p className="priority-legend-title">Priority Column Meaning</p>
-            <div className="priority-legend-items">
-              <span className="badge priority-high">HIGH = urgent, high impact</span>
-              <span className="badge priority-medium">MEDIUM = important, schedulable</span>
-              <span className="badge priority-low">LOW = flexible, lower impact</span>
+        {overview.optimization ? (
+          <Card title="Optimization Spotlight" subtitle="Highest priority recommended stories">
+            <div className="chip-row">
+              <span className="chip">Success Probability {Math.round(overview.optimization.predictedSuccessProbability)}%</span>
+              <span className="chip">Utilization {formatPercent(overview.optimization.capacityUtilization)}</span>
+              <span className="chip">Feasibility {overview.optimization.feasibilityScore.toFixed(2)}</span>
             </div>
-          </div>
 
-          <div className="task-stack-head">
-            <span>Recommended Task</span>
-            <span>Priority Column</span>
-          </div>
-
-          <div className="task-stack">
-            {overview.optimization.recommendedTasks.map((task) => (
-              <div key={task.id} className="task-stack-item">
-                <div>
-                  <p>{task.title}</p>
-                  <span>{task.storyPoints} story points</span>
-                </div>
-                <span className={`badge ${PRIORITY_META[task.priority]?.className}`}>{task.priority}</span>
+            <div className="priority-legend">
+              <p className="priority-legend-title">Priority Column Meaning</p>
+              <div className="priority-legend-items">
+                <span className="badge priority-high">HIGH = urgent, high impact</span>
+                <span className="badge priority-medium">MEDIUM = important, schedulable</span>
+                <span className="badge priority-low">LOW = flexible, lower impact</span>
               </div>
-            ))}
-          </div>
-        </Card>
+            </div>
+
+            <div className="task-stack-head">
+              <span>Recommended Task</span>
+              <span>Priority Column</span>
+            </div>
+
+            <div className="task-stack">
+              {overview.optimization.recommendedTasks.map((task) => (
+                <div key={task.id} className="task-stack-item">
+                  <div>
+                    <p>{task.title}</p>
+                    <span>{task.storyPoints} story points</span>
+                  </div>
+                  <span className={`badge ${PRIORITY_META[task.priority]?.className}`}>{task.priority}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <Card title="Optimization Spotlight" subtitle="Highest priority recommended stories">
+            <p className="text-muted" style={{ padding: "1rem" }}>No active sprint to optimize.</p>
+          </Card>
+        )}
 
         <Card title="Portfolio Throughput" subtitle="Completed tasks by project">
           <div className="throughput-list">
