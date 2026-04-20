@@ -368,10 +368,10 @@ function Projects() {
                 </div>
 
                 <div className="project-actions">
-                  <Button as={Link} to={`/projects/${project.id}`} variant="primary" size="sm">
+                  <Button as={Link} to={`/app/projects/${project.id}`} variant="primary" size="sm">
                     Open Details
                   </Button>
-                  <Button as={Link} to={`/projects/${project.id}/backlog`} variant="ghost" size="sm">
+                  <Button as={Link} to={`/app/projects/${project.id}/backlog`} variant="ghost" size="sm">
                     Backlog
                   </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => openEditForm(project)}>

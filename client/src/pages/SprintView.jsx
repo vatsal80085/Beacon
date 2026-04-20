@@ -345,7 +345,7 @@ function SprintView() {
           <Button type="button" variant="primary" size="sm" onClick={() => setShowTaskForm((value) => !value)}>
             {showTaskForm ? "Close Task Form" : "Add Sprint Task"}
           </Button>
-          <Button as={Link} to={`/projects/${sprint.projectId}`} variant="ghost" size="sm">
+          <Button as={Link} to={`/app/projects/${sprint.projectId}`} variant="ghost" size="sm">
             Open Project
           </Button>
         </div>

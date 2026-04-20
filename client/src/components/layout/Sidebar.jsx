@@ -9,26 +9,26 @@ function Sidebar() {
   const location = useLocation();
 
   const navItems = [
-    { to: "/", label: "Dashboard", icon: "D" },
-    { to: "/projects", label: "Projects", icon: "P" },
-    { to: "/backlog", label: "Backlog", icon: "B" },
-    { to: "/analytics", label: "Analytics", icon: "A" },
-    { to: `/sprints/${quickLinks.sprintId}`, label: "Sprint View", icon: "S" },
+    { to: "/app", label: "Dashboard", icon: "D" },
+    { to: "/app/projects", label: "Projects", icon: "P" },
+    { to: "/app/backlog", label: "Backlog", icon: "B" },
+    { to: "/app/analytics", label: "Analytics", icon: "A" },
+    { to: `/app/sprints/${quickLinks.sprintId}`, label: "Sprint View", icon: "S" },
   ];
 
   const isItemActive = (item) => {
     const path = location.pathname;
-    if (item.to === "/") {
-      return path === "/";
+    if (item.to === "/app") {
+      return path === "/app";
     }
-    if (item.to === "/projects") {
-      return (path === "/projects" || /^\/projects\/[^/]+$/.test(path)) && !path.endsWith("/backlog");
+    if (item.to === "/app/projects") {
+      return (path === "/app/projects" || /^\/app\/projects\/[^/]+$/.test(path)) && !path.endsWith("/backlog");
     }
-    if (item.to === "/backlog") {
-      return path === "/backlog" || path.endsWith("/backlog");
+    if (item.to === "/app/backlog") {
+      return path === "/app/backlog" || path.endsWith("/backlog");
     }
-    if (item.to.startsWith("/sprints/")) {
-      return path.startsWith("/sprints/");
+    if (item.to.startsWith("/app/sprints/")) {
+      return path.startsWith("/app/sprints/");
     }
     return path === item.to;
   };

@@ -13,10 +13,10 @@ function Login() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const from = location.state?.from?.pathname ?? "/";
+  const from = location.state?.from?.pathname ?? "/app";
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   const handleSubmit = async (event) => {
