@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { projectApi, STATUS_META } from "../api/axios.js";
-import Card from "../components/common/Card.jsx";
+import { getApiErrorMessage, projectApi, STATUS_META } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
+import Card from "../components/common/Card.jsx";
+import { useAuth } from "../hooks/useAuth.js";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { formatDate, formatPercent } from "../utils/formatters.js";
 
 const HIGH_RISK_THRESHOLD = 0.35;
@@ -16,6 +19,7 @@ const emptyProjectForm = {
 };
 
 function Projects() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -23,6 +27,12 @@ function Projects() {
   const [formMode, setFormMode] = useState(null);
   const [alert, setAlert] = useState({ message: "", type: "", visible: false });
   const alertTimeoutRef = useRef(null);
+  const [formValues, setFormValues] = useState(emptyProjectForm);
+  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState("");
+
+  const canManageProjects = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   const showAlert = (message, type = "success") => {
     setAlert({ message, type, visible: true });
@@ -42,10 +52,6 @@ function Projects() {
       alertTimeoutRef.current = null;
     }
   };
-  const [formValues, setFormValues] = useState(emptyProjectForm);
-  const [activeProjectId, setActiveProjectId] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [actionError, setActionError] = useState("");
 
   const loadProjects = useCallback(async () => {
     const items = await projectApi.getProjects();
@@ -60,14 +66,7 @@ function Projects() {
 
     const initialize = async () => {
       try {
-        const items = await projectApi.getProjects();
-        if (!isMounted) {
-          return;
-        }
-        setProjects(items);
-        if (items.length > 0) {
-          localStorage.setItem("beacon:lastProjectId", items[0].id);
-        }
+        await loadProjects();
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -80,7 +79,12 @@ function Projects() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadProjects]);
+
+  useLiveRefresh(loadProjects, {
+    enabled: !loading,
+    channels: [LIVE_CHANNELS.projects],
+  });
 
   const filteredProjects = useMemo(() => {
     const lowered = query.trim().toLowerCase();
@@ -145,9 +149,10 @@ function Projects() {
       }
       await loadProjects();
       closeForm();
-    } catch {
-      setActionError("Project save failed. Please try again.");
-      showAlert("Project save failed. Please try again.", "error");
+    } catch (projectError) {
+      const message = getApiErrorMessage(projectError, "Project save failed. Please try again.");
+      setActionError(message);
+      showAlert(message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -163,8 +168,8 @@ function Projects() {
       await projectApi.deleteProject(projectId);
       await loadProjects();
       showAlert("Project deleted successfully.");
-    } catch {
-      showAlert("Project delete failed. Please try again.", "error");
+    } catch (projectError) {
+      showAlert(getApiErrorMessage(projectError, "Project delete failed. Please try again."), "error");
     }
   };
 
@@ -174,7 +179,7 @@ function Projects() {
         <div className={`project-alert project-alert-${alert.type}`} role="status">
           <span>{alert.message}</span>
           <button type="button" onClick={hideAlert} aria-label="Dismiss notification">
-            ×
+            x
           </button>
         </div>
       ) : null}
@@ -374,12 +379,16 @@ function Projects() {
                   <Button as={Link} to={`/app/projects/${project.id}/backlog`} variant="ghost" size="sm">
                     Backlog
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => openEditForm(project)}>
-                    Edit
-                  </Button>
-                  <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteProject(project.id)}>
-                    Delete
-                  </Button>
+                  {canManageProjects ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => openEditForm(project)}>
+                      Edit
+                    </Button>
+                  ) : null}
+                  {canManageProjects ? (
+                    <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteProject(project.id)}>
+                      Delete
+                    </Button>
+                  ) : null}
                 </div>
               </Card>
             );

@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { analyticsApi, PRIORITY_META } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
 import Card from "../components/common/Card.jsx";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { formatPercent } from "../utils/formatters.js";
 
 const HIGH_RISK_THRESHOLD = 0.35;
@@ -12,19 +14,21 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const loadOverview = useCallback(async () => {
+    const payload = await analyticsApi.getDashboardOverview();
+    setOverview(payload);
+    if (payload?.activeSprint?.id) {
+      localStorage.setItem("beacon:lastSprintId", payload.activeSprint.id);
+      localStorage.setItem("beacon:lastProjectId", payload.activeSprint.projectId);
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
-    const loadOverview = async () => {
+    const initialize = async () => {
       try {
-        const payload = await analyticsApi.getDashboardOverview();
-        if (isMounted) {
-          setOverview(payload);
-          if (payload?.activeSprint?.id) {
-            localStorage.setItem("beacon:lastSprintId", payload.activeSprint.id);
-            localStorage.setItem("beacon:lastProjectId", payload.activeSprint.projectId);
-          }
-        }
+        await loadOverview();
       } catch {
         if (isMounted) {
           setError("Could not load dashboard metrics.");
@@ -36,12 +40,17 @@ function Dashboard() {
       }
     };
 
-    loadOverview();
+    initialize();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadOverview]);
+
+  useLiveRefresh(loadOverview, {
+    enabled: !loading,
+    channels: [LIVE_CHANNELS.dashboard],
+  });
 
   const kpis = useMemo(() => {
     if (!overview) {

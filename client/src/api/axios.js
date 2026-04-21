@@ -3,6 +3,21 @@ import axios from "axios";
 const DEFAULT_API_BASE_URL = "http://localhost:5050/api";
 const REQUEST_TIMEOUT_MS = 6000;
 
+export const getApiErrorMessage = (error, fallback = "Request failed.") => {
+  if (!error) return fallback;
+  const responseData = error?.response?.data;
+  if (typeof responseData?.error === "string" && responseData.error.trim()) {
+    return responseData.error;
+  }
+  if (typeof responseData?.message === "string" && responseData.message.trim()) {
+    return responseData.message;
+  }
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+};
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL,
   timeout: REQUEST_TIMEOUT_MS,
@@ -15,6 +30,16 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const message = getApiErrorMessage(error);
+    const wrapped = new Error(message);
+    wrapped.cause = error;
+    throw wrapped;
+  },
+);
 
 const unwrapResponse = (response) => response?.data?.data ?? response?.data ?? null;
 const toClientId = (item) => (item ? { ...item, id: item.id ?? item._id } : item);
@@ -192,7 +217,7 @@ export const invitationApi = {
     const response = await api.get(`/users/${userId}/invitations`);
     return toClientCollection(unwrapResponse(response));
   },
-  async respondToInvitation(invitationId, userId, action) {
+  async respondToInvitation(invitationId, action) {
     const response = await api.patch(`/invitations/${invitationId}`, { action });
     return toClientId(unwrapResponse(response));
   },

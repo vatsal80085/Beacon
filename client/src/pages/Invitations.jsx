@@ -3,6 +3,8 @@ import { invitationApi } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
 import Card from "../components/common/Card.jsx";
 import { useAuth } from "../hooks/useAuth.js";
+import { triggerLiveRefresh, useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { buildUserChannel, LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { formatDate } from "../utils/formatters.js";
 
 function Invitations() {
@@ -44,6 +46,11 @@ function Invitations() {
     };
   }, [loadInvitations]);
 
+  useLiveRefresh(loadInvitations, {
+    enabled: Boolean(user?.id),
+    channels: [LIVE_CHANNELS.invitations, buildUserChannel(user?.id)],
+  });
+
   const pendingInvites = useMemo(
     () => invitations.filter((invite) => invite.status === "PENDING"),
     [invitations],
@@ -61,8 +68,9 @@ function Invitations() {
     setProcessingId(invitationId);
     setError("");
     try {
-      await invitationApi.respondToInvitation(invitationId, user.id, action);
+      await invitationApi.respondToInvitation(invitationId, action);
       await loadInvitations();
+      triggerLiveRefresh([LIVE_CHANNELS.invitations, buildUserChannel(user.id)]);
     } catch {
       setError("Could not update invitation status.");
     } finally {

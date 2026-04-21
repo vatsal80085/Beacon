@@ -1,7 +1,15 @@
 import Task from "./task.model.js";
-import Project from "../project/project.model.js";
 import { HttpError } from "../../utils/httpError.js";
 import { serializeId } from "../analytics/analytics.service.js";
+import { getSprintRealtimeChannels } from "../live/live.channels.js";
+import { publishLiveUpdate } from "../live/live.service.js";
+import {
+  canManageProject,
+  getAccessibleProjectIds,
+  getProjectForRequester,
+  getSprintForRequester,
+  resolveProjectMemberIds,
+} from "../project/project.permissions.js";
 
 const normalizeRisk = (risk) => {
   if (typeof risk === "number") {
@@ -19,6 +27,20 @@ const normalizeRisk = (risk) => {
   };
 };
 
+const canManageTasks = (requester) => canManageProject(requester);
+
+const getProjectForAccess = async (projectId, requester) => getProjectForRequester(projectId, requester, { lean: true });
+
+const getTaskWithProjectAccess = async (taskId, requester) => {
+  const task = await Task.findById(taskId);
+  if (!task) {
+    throw new HttpError(404, "Task not found.");
+  }
+
+  await getProjectForAccess(task.projectId, requester);
+  return task;
+};
+
 const formatTask = (task) => ({
   ...task.toObject(),
   id: serializeId(task._id),
@@ -27,15 +49,29 @@ const formatTask = (task) => ({
   assignedTo: task.assignedTo ? serializeId(task.assignedTo) : null,
 });
 
-export const listTasks = async ({ projectId, sprintId }, userId) => {
+const emitTaskRefresh = (project, sprintIds, type, taskId) => {
+  publishLiveUpdate({
+    userIds: resolveProjectMemberIds(project),
+    channels: getSprintRealtimeChannels(project._id, sprintIds),
+    type,
+    projectId: serializeId(project._id),
+    taskId: serializeId(taskId),
+  });
+};
+
+export const listTasks = async ({ projectId, sprintId }, requester) => {
   const query = {};
+
   if (projectId) {
-    const project = await Project.findById(projectId).lean();
-    if (!project || !project.teamMemberIds.some((id) => String(id) === String(userId))) {
-      throw new HttpError(403, "Forbidden");
-    }
+    await getProjectForAccess(projectId, requester);
     query.projectId = projectId;
+  } else if (sprintId && sprintId !== "backlog") {
+    const { sprint } = await getSprintForRequester(sprintId, requester);
+    query.projectId = sprint.projectId;
+  } else {
+    query.projectId = { $in: await getAccessibleProjectIds(requester) };
   }
+
   if (sprintId === "backlog") {
     query.sprintId = null;
   } else if (sprintId) {
@@ -46,21 +82,26 @@ export const listTasks = async ({ projectId, sprintId }, userId) => {
   return tasks.map(formatTask);
 };
 
-export const getTask = async (taskId, userId) => {
-  const task = await Task.findById(taskId);
-  if (!task) {
-    throw new HttpError(404, "Task not found.");
-  }
-  const project = await Project.findById(task.projectId).lean();
-  if (!project || !project.teamMemberIds.some((id) => String(id) === String(userId))) {
-    throw new HttpError(403, "Forbidden");
-  }
+export const getTask = async (taskId, requester) => {
+  const task = await getTaskWithProjectAccess(taskId, requester);
   return formatTask(task);
 };
 
-export const createTask = async (payload) => {
+export const createTask = async (payload, requester) => {
+  const project = await getProjectForAccess(payload.projectId, requester);
+  if (payload.sprintId && !canManageTasks(requester)) {
+    throw new HttpError(403, "Only managers can add tasks directly to a sprint.");
+  }
+
+  if (payload.sprintId) {
+    const { sprint } = await getSprintForRequester(payload.sprintId, requester, { requireManager: true });
+    if (serializeId(sprint.projectId) !== serializeId(project._id)) {
+      throw new HttpError(400, "Task sprint must belong to the same project.");
+    }
+  }
+
   const task = await Task.create({
-    projectId: payload.projectId,
+    projectId: project._id,
     sprintId: payload.sprintId ?? null,
     title: payload.title,
     description: payload.description ?? "",
@@ -73,14 +114,19 @@ export const createTask = async (payload) => {
     riskFactor: Number(payload.riskFactor ?? 5),
     urgency: Number(payload.urgency ?? 5),
   });
+
+  emitTaskRefresh(project, [payload.sprintId], "task.created", task._id);
   return formatTask(task);
 };
 
-export const updateTask = async (taskId, updates) => {
-  const task = await Task.findById(taskId);
-  if (!task) {
-    throw new HttpError(404, "Task not found.");
+export const updateTask = async (taskId, updates, requester) => {
+  const task = await getTaskWithProjectAccess(taskId, requester);
+  if (!canManageTasks(requester)) {
+    throw new HttpError(403, "Only managers can edit task details. Developers can only update task status.");
   }
+
+  const project = await getProjectForAccess(task.projectId, requester);
+  const previousSprintId = task.sprintId;
 
   task.title = updates.title ?? task.title;
   task.description = updates.description ?? task.description;
@@ -88,7 +134,18 @@ export const updateTask = async (taskId, updates) => {
   task.priority = updates.priority ?? task.priority;
   task.storyPoints = updates.storyPoints !== undefined ? Number(updates.storyPoints) : task.storyPoints;
   task.status = updates.status ?? task.status;
-  task.sprintId = updates.sprintId !== undefined ? updates.sprintId : task.sprintId;
+
+  if (updates.sprintId !== undefined) {
+    if (updates.sprintId) {
+      const { sprint } = await getSprintForRequester(updates.sprintId, requester, { requireManager: true });
+      if (serializeId(sprint.projectId) !== serializeId(task.projectId)) {
+        throw new HttpError(400, "Task sprint must belong to the same project.");
+      }
+    }
+
+    task.sprintId = updates.sprintId;
+  }
+
   task.businessValue = updates.businessValue !== undefined ? Number(updates.businessValue) : task.businessValue;
   task.riskFactor = updates.riskFactor !== undefined ? Number(updates.riskFactor) : task.riskFactor;
   task.urgency = updates.urgency !== undefined ? Number(updates.urgency) : task.urgency;
@@ -97,14 +154,29 @@ export const updateTask = async (taskId, updates) => {
   }
 
   await task.save();
+  emitTaskRefresh(project, [previousSprintId, task.sprintId], "task.updated", task._id);
   return formatTask(task);
 };
 
-export const removeTask = async (taskId) => {
-  const task = await Task.findById(taskId);
-  if (!task) {
-    throw new HttpError(404, "Task not found.");
+export const updateTaskStatus = async (taskId, status, requester) => {
+  const task = await getTaskWithProjectAccess(taskId, requester);
+  const project = await getProjectForAccess(task.projectId, requester);
+  task.status = status ?? task.status;
+  await task.save();
+  emitTaskRefresh(project, [task.sprintId], "task.status.updated", task._id);
+  return formatTask(task);
+};
+
+export const removeTask = async (taskId, requester) => {
+  const task = await getTaskWithProjectAccess(taskId, requester);
+  if (!canManageTasks(requester)) {
+    throw new HttpError(403, "Only managers can delete tasks.");
   }
+
+  const project = await getProjectForAccess(task.projectId, requester);
+  const sprintId = task.sprintId;
+
   await Task.findByIdAndDelete(taskId);
+  emitTaskRefresh(project, [sprintId], "task.deleted", taskId);
   return { deletedTaskId: taskId };
 };

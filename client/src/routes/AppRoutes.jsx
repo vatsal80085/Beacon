@@ -11,6 +11,7 @@ import Projects from "../pages/Projects.jsx";
 import Signup from "../pages/Signup.jsx";
 import SprintView from "../pages/SprintView.jsx";
 import Analytics from "../pages/Analytics.jsx";
+import Sprints from "../pages/Sprints.jsx";
 
 function AppRoutes() {
   return (
@@ -21,16 +22,17 @@ function AppRoutes() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppLayout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="projects" element={<Projects />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="backlog" element={<Backlog />} />
-          <Route path="invitations" element={<Invitations />} />
-          <Route path="projects/:projectId" element={<ProjectDetails />} />
-          <Route path="projects/:projectId/backlog" element={<Backlog />} />
-          <Route path="sprints/:sprintId" element={<SprintView />} />
-        </Route>
+        <Route index element={<Dashboard />} />
+        <Route path="projects" element={<Projects />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="backlog" element={<Backlog />} />
+        <Route path="invitations" element={<Invitations />} />
+        <Route path="projects/:projectId" element={<ProjectDetails />} />
+        <Route path="projects/:projectId/backlog" element={<Backlog />} />
+        <Route path="sprints" element={<Sprints />} />
+        <Route path="sprints/:sprintId" element={<SprintView />} />
       </Route>
+    </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
