@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
+import { analyticsApi, PRIORITY_META } from "../api/axios.js";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { LIVE_CHANNELS } from "../realtime/liveChannels.js";
+import { formatPercent } from "../utils/formatters.js";
 import "../styles/landing.css";
 
 const FEATURES = [
@@ -62,6 +66,20 @@ function LandingPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
+  const [preview, setPreview] = useState(null);
+  const loadPreview = useCallback(async () => {
+    if (!isAuthenticated) {
+      setPreview(null);
+      return;
+    }
+
+    try {
+      const data = await analyticsApi.getDashboardOverview();
+      setPreview(data);
+    } catch {
+      setPreview(null);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -82,6 +100,28 @@ function LandingPage() {
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initialize = async () => {
+      await loadPreview();
+      if (!isMounted) {
+        return;
+      }
+    };
+
+    initialize();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [loadPreview]);
+
+  useLiveRefresh(loadPreview, {
+    enabled: isAuthenticated,
+    channels: [LIVE_CHANNELS.dashboard],
+  });
 
   const handleSignupSubmit = (e) => {
     e.preventDefault();
@@ -159,15 +199,19 @@ function LandingPage() {
                 <div className="dash-row">
                   <div className="dash-card stat-card">
                     <div className="stat-label">Portfolio Health</div>
-                    <div className="stat-value text-gradient">92 / 100</div>
+                    <div className="stat-value text-gradient">
+                      {preview ? `${Math.round(preview.portfolioHealth ?? 0)} / 100` : "Sign in"}
+                    </div>
                   </div>
                   <div className="dash-card stat-card">
                     <div className="stat-label">Active Sprints</div>
-                    <div className="stat-value">3</div>
+                    <div className="stat-value">{preview ? preview.activeSprints ?? 0 : "to see"}</div>
                   </div>
                   <div className="dash-card stat-card">
                     <div className="stat-label">Average Velocity</div>
-                    <div className="stat-value">45.2 pts</div>
+                    <div className="stat-value">
+                      {preview ? `${Number(preview.averageVelocity ?? 0).toFixed(1)} pts/day` : "live data"}
+                    </div>
                   </div>
                 </div>
                 <div className="dash-row main-dash-row">
@@ -186,15 +230,29 @@ function LandingPage() {
                       <LandingGlyph type="ai" /> AI Recommendation
                     </div>
                     <div className="ai-content">
-                      <div className="ai-insight">Success Probability: <strong className="text-gradient">89%</strong></div>
-                      <div className="ai-task">
-                        <span className="task-id">BCN-12</span> Implement WebSocket sync
-                        <span className="task-tag">High Impact</span>
-                      </div>
-                      <div className="ai-task">
-                        <span className="task-id">BCN-08</span> Optimize database queries
-                        <span className="task-tag">Performance</span>
-                      </div>
+                      {preview?.optimization ? (
+                        <>
+                          <div className="ai-insight">
+                            Success Probability:{" "}
+                            <strong className="text-gradient">
+                              {Math.round(preview.optimization.predictedSuccessProbability ?? 0)}%
+                            </strong>
+                          </div>
+                          {(preview.optimization.recommendedTasks ?? []).slice(0, 2).map((task) => (
+                            <div key={task.id} className="ai-task">
+                              <span className="task-id">{task.id?.slice(0, 7) ?? "TASK"}</span> {task.title}
+                              <span className="task-tag">{PRIORITY_META[task.priority]?.label ?? task.priority ?? "Priority"}</span>
+                            </div>
+                          ))}
+                          <div className="ai-insight" style={{ marginTop: "0.75rem" }}>
+                            Utilization: <strong>{formatPercent(preview.optimization.capacityUtilization ?? 0)}</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="ai-insight">
+                          Sign in to see recommendations based on your backlog, risks, and capacity.
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

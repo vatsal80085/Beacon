@@ -1,11 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 
-const getQuickLinks = () => ({
-  sprintId: localStorage.getItem("beacon:lastSprintId") ?? "s-001",
-});
-
 function Sidebar() {
-  const quickLinks = getQuickLinks();
   const location = useLocation();
 
   const navItems = [
@@ -13,7 +8,7 @@ function Sidebar() {
     { to: "/app/projects", label: "Projects", icon: "P" },
     { to: "/app/backlog", label: "Backlog", icon: "B" },
     { to: "/app/analytics", label: "Analytics", icon: "A" },
-    { to: `/app/sprints/${quickLinks.sprintId}`, label: "Sprint View", icon: "S" },
+    { to: "/app/sprints", label: "Sprints", icon: "S" },
   ];
 
   const isItemActive = (item) => {

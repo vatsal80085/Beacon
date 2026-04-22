@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "../components/common/Card.jsx";
 import { analyticsApi, projectApi, sprintApi } from "../api/axios.js";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { formatPercent } from "../utils/formatters.js";
 
 function Analytics() {
@@ -9,43 +11,50 @@ function Analytics() {
   const [sprints, setSprints] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const loadAnalytics = useCallback(async () => {
+    const dashboard = await analyticsApi.getDashboardOverview();
+    const projects = await projectApi.getProjects();
+    const analyticsByProject = await Promise.all(
+      projects.map(async (project) => ({
+        project,
+        analytics: await analyticsApi.getProjectAnalytics(project.id),
+      })),
+    );
+    const sprintRows = await Promise.all(
+      projects.flatMap((project) =>
+        (project.activeSprintId ? [project.activeSprintId] : []).map(async (sprintId) => ({
+          sprint: await sprintApi.getSprintById(sprintId),
+          analytics: await analyticsApi.getSprintAnalytics(sprintId),
+        })),
+      ),
+    );
+
+    setOverview(dashboard);
+    setProjectAnalytics(analyticsByProject);
+    setSprints(sprintRows.filter((row) => row.sprint && row.analytics));
+  }, []);
+
   useEffect(() => {
     let active = true;
 
-    const loadAnalytics = async () => {
-      const dashboard = await analyticsApi.getDashboardOverview();
-      const projects = await projectApi.getProjects();
-      const analyticsByProject = await Promise.all(
-        projects.map(async (project) => ({
-          project,
-          analytics: await analyticsApi.getProjectAnalytics(project.id),
-        })),
-      );
-      const sprintRows = await Promise.all(
-        projects.flatMap((project) =>
-          (project.activeSprintId ? [project.activeSprintId] : []).map(async (sprintId) => ({
-            sprint: await sprintApi.getSprintById(sprintId),
-            analytics: await analyticsApi.getSprintAnalytics(sprintId),
-          })),
-        ),
-      );
-
-      if (!active) {
-        return;
+    const initialize = async () => {
+      await loadAnalytics();
+      if (active) {
+        setLoading(false);
       }
-
-      setOverview(dashboard);
-      setProjectAnalytics(analyticsByProject);
-      setSprints(sprintRows.filter((row) => row.sprint && row.analytics));
-      setLoading(false);
     };
 
-    loadAnalytics();
+    initialize();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadAnalytics]);
+
+  useLiveRefresh(loadAnalytics, {
+    enabled: !loading,
+    channels: [LIVE_CHANNELS.analytics, LIVE_CHANNELS.projects, LIVE_CHANNELS.sprints],
+  });
 
   const overloadRows = useMemo(() => overview?.teamLoad ?? [], [overview]);
 

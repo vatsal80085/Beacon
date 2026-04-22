@@ -8,8 +8,8 @@ function Login() {
   const location = useLocation();
   const { login, isAuthenticated } = useAuth();
 
-  const [email, setEmail] = useState("manager@beacon.dev");
-  const [password, setPassword] = useState("beacon-demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,7 +74,6 @@ function Login() {
         </form>
 
         <footer className="auth-footnote">
-          <p>Demo mode enabled if API auth is unavailable.</p>
           <p className="auth-inline">
             <span>New here?</span>
             <Link to="/signup">Create account</Link>
