@@ -1,10 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { analyticsApi, projectApi, sprintApi, STATUS_META } from "../api/axios.js";
+import { analyticsApi, getApiErrorMessage, projectApi, sprintApi, STATUS_META } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
 import Card from "../components/common/Card.jsx";
 import { useAuth } from "../hooks/useAuth.js";
+import { triggerLiveRefresh, useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { buildProjectChannel, LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { formatDate, formatPercent } from "../utils/formatters.js";
+
+const emptyProjectForm = {
+  name: "",
+  description: "",
+  status: "PLANNED",
+  startDate: "",
+  endDate: "",
+};
+
+const emptySprintForm = {
+  name: "",
+  goal: "",
+  startDate: "",
+  endDate: "",
+  status: "PLANNED",
+  committedStoryPoints: 0,
+};
 
 function ProjectDetails() {
   const { projectId } = useParams();
@@ -16,21 +35,8 @@ function ProjectDetails() {
   const [loading, setLoading] = useState(true);
   const [showProjectEditor, setShowProjectEditor] = useState(false);
   const [showSprintCreator, setShowSprintCreator] = useState(false);
-  const [projectForm, setProjectForm] = useState({
-    name: "",
-    description: "",
-    status: "PLANNED",
-    startDate: "",
-    endDate: "",
-  });
-  const [sprintForm, setSprintForm] = useState({
-    name: "",
-    goal: "",
-    startDate: "",
-    endDate: "",
-    status: "PLANNED",
-    committedStoryPoints: 0,
-  });
+  const [projectForm, setProjectForm] = useState(emptyProjectForm);
+  const [sprintForm, setSprintForm] = useState(emptySprintForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
@@ -39,41 +45,58 @@ function ProjectDetails() {
     role: "DEVELOPER",
   });
 
-  const loadDetails = useCallback(async () => {
-    const [projectData, sprintData, analyticsData, invitationData] = await Promise.all([
-      projectApi.getProjectById(projectId),
-      sprintApi.getSprintsByProject(projectId),
-      analyticsApi.getProjectAnalytics(projectId),
-      projectApi.getProjectInvitations(projectId),
-    ]);
+  const canManageProject = user?.role === "MANAGER" || user?.role === "ADMIN";
+  const projectChannel = buildProjectChannel(projectId);
 
-    setProject(projectData);
-    setSprints(sprintData);
-    setAnalytics(analyticsData);
-    setProjectInvites(invitationData);
-    if (projectData?.id) {
-      localStorage.setItem("beacon:lastProjectId", projectData.id);
-    }
-    const activeSprint = sprintData.find((sprint) => sprint.status === "ACTIVE");
-    if (activeSprint?.id) {
-      localStorage.setItem("beacon:lastSprintId", activeSprint.id);
-    }
+  const syncProjectForm = useCallback(
+    (projectData, { force = false } = {}) => {
+      if (!projectData || (showProjectEditor && !force)) {
+        return;
+      }
 
-    setProjectForm({
-      name: projectData?.name ?? "",
-      description: projectData?.description ?? "",
-      status: projectData?.status ?? "PLANNED",
-      startDate: projectData?.startDate ? String(projectData.startDate).slice(0, 10) : "",
-      endDate: projectData?.endDate ? String(projectData.endDate).slice(0, 10) : "",
-    });
-  }, [projectId]);
+      setProjectForm({
+        name: projectData.name ?? "",
+        description: projectData.description ?? "",
+        status: projectData.status ?? "PLANNED",
+        startDate: projectData.startDate ? String(projectData.startDate).slice(0, 10) : "",
+        endDate: projectData.endDate ? String(projectData.endDate).slice(0, 10) : "",
+      });
+    },
+    [showProjectEditor],
+  );
+
+  const loadDetails = useCallback(
+    async ({ forceProjectFormSync = false } = {}) => {
+      const [projectData, sprintData, analyticsData, invitationData] = await Promise.all([
+        projectApi.getProjectById(projectId),
+        sprintApi.getSprintsByProject(projectId),
+        analyticsApi.getProjectAnalytics(projectId),
+        projectApi.getProjectInvitations(projectId),
+      ]);
+
+      setProject(projectData);
+      setSprints(sprintData);
+      setAnalytics(analyticsData);
+      setProjectInvites(invitationData);
+      syncProjectForm(projectData, { force: forceProjectFormSync });
+
+      if (projectData?.id) {
+        localStorage.setItem("beacon:lastProjectId", projectData.id);
+      }
+      const activeSprint = sprintData.find((sprint) => sprint.status === "ACTIVE");
+      if (activeSprint?.id) {
+        localStorage.setItem("beacon:lastSprintId", activeSprint.id);
+      }
+    },
+    [projectId, syncProjectForm],
+  );
 
   useEffect(() => {
     let isMounted = true;
 
     const initialize = async () => {
       try {
-        await loadDetails();
+        await loadDetails({ forceProjectFormSync: true });
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -87,6 +110,11 @@ function ProjectDetails() {
       isMounted = false;
     };
   }, [loadDetails]);
+
+  useLiveRefresh(() => loadDetails(), {
+    enabled: Boolean(projectId && user?.id && !loading),
+    channels: [projectChannel],
+  });
 
   const teamPerformance = useMemo(() => {
     if (!project || !analytics) {
@@ -127,10 +155,10 @@ function ProjectDetails() {
     setError("");
     try {
       await projectApi.updateProject(projectId, projectForm);
-      await loadDetails();
+      await loadDetails({ forceProjectFormSync: true });
       setShowProjectEditor(false);
-    } catch {
-      setError("Unable to update project.");
+    } catch (projectError) {
+      setError(getApiErrorMessage(projectError, "Unable to update project."));
     } finally {
       setSaving(false);
     }
@@ -147,27 +175,23 @@ function ProjectDetails() {
       });
       await loadDetails();
       setShowSprintCreator(false);
-      setSprintForm({
-        name: "",
-        goal: "",
-        startDate: "",
-        endDate: "",
-        status: "PLANNED",
-        committedStoryPoints: 0,
-      });
-    } catch {
-      setError("Unable to create sprint.");
+      setSprintForm(emptySprintForm);
+    } catch (sprintError) {
+      setError(getApiErrorMessage(sprintError, "Unable to create sprint."));
     } finally {
       setSaving(false);
     }
   };
 
   const handleSprintStatusChange = async (sprintId, status) => {
-    await sprintApi.updateSprintStatus(sprintId, status);
-    await loadDetails();
+    try {
+      setError("");
+      await sprintApi.updateSprintStatus(sprintId, status);
+      await loadDetails();
+    } catch (sprintError) {
+      setError(getApiErrorMessage(sprintError, "Unable to update sprint status."));
+    }
   };
-
-  const canInvite = user?.role === "MANAGER" || user?.role === "ADMIN";
 
   const handleInviteChange = (event) => {
     const { name, value } = event.target;
@@ -176,21 +200,23 @@ function ProjectDetails() {
 
   const handleSendInvite = async (event) => {
     event.preventDefault();
-    if (!canInvite || !user?.id) {
+    if (!canManageProject || !user?.id) {
       return;
     }
+
     setInviteSubmitting(true);
     setError("");
+
     try {
       await projectApi.inviteMemberByUniqueCode(projectId, {
         inviteeUniqueCode: inviteForm.inviteeUniqueCode,
         role: inviteForm.role,
-        invitedByUserId: user.id,
       });
       await loadDetails();
+      triggerLiveRefresh([LIVE_CHANNELS.invitations, projectChannel]);
       setInviteForm({ inviteeUniqueCode: "", role: "DEVELOPER" });
     } catch (inviteError) {
-      setError(inviteError?.message ?? "Unable to send invitation.");
+      setError(getApiErrorMessage(inviteError, "Unable to send invitation."));
     } finally {
       setInviteSubmitting(false);
     }
@@ -225,12 +251,16 @@ function ProjectDetails() {
           <p className="page-subtitle">{project.description}</p>
         </div>
         <div className="page-actions">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setShowProjectEditor((value) => !value)}>
-            {showProjectEditor ? "Close Editor" : "Edit Project"}
-          </Button>
-          <Button type="button" variant="primary" size="sm" onClick={() => setShowSprintCreator((value) => !value)}>
-            {showSprintCreator ? "Close Sprint Form" : "Create Sprint"}
-          </Button>
+          {canManageProject ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowProjectEditor((value) => !value)}>
+              {showProjectEditor ? "Close Editor" : "Edit Project"}
+            </Button>
+          ) : null}
+          {canManageProject ? (
+            <Button type="button" variant="primary" size="sm" onClick={() => setShowSprintCreator((value) => !value)}>
+              {showSprintCreator ? "Close Sprint Form" : "Create Sprint"}
+            </Button>
+          ) : null}
           <Button as={Link} to={`/app/projects/${project.id}/backlog`} variant="secondary" size="sm">
             Open Backlog
           </Button>
@@ -406,7 +436,7 @@ function ProjectDetails() {
           ))}
         </div>
 
-        {canInvite ? (
+        {canManageProject ? (
           <form className="entity-form" onSubmit={handleSendInvite}>
             <div className="form-grid">
               <div>
@@ -550,12 +580,12 @@ function ProjectDetails() {
 
               <div className="sprint-row-actions">
                 <span className={`badge ${STATUS_META[sprint.status]?.className}`}>{sprint.status}</span>
-                {sprint.status !== "ACTIVE" ? (
+                {canManageProject && sprint.status !== "ACTIVE" ? (
                   <Button type="button" variant="ghost" size="sm" onClick={() => handleSprintStatusChange(sprint.id, "ACTIVE")}>
                     Start
                   </Button>
                 ) : null}
-                {sprint.status !== "COMPLETED" ? (
+                {canManageProject && sprint.status !== "COMPLETED" ? (
                   <Button type="button" variant="ghost" size="sm" onClick={() => handleSprintStatusChange(sprint.id, "COMPLETED")}>
                     Complete
                   </Button>

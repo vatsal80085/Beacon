@@ -1,6 +1,8 @@
 import Sprint from "./sprint.model.js";
-import { HttpError } from "../../utils/httpError.js";
 import { serializeId } from "../analytics/analytics.service.js";
+import { getAccessibleProjectIds, getProjectForRequester, getSprintForRequester, resolveProjectMemberIds } from "../project/project.permissions.js";
+import { getSprintRealtimeChannels } from "../live/live.channels.js";
+import { publishLiveUpdate } from "../live/live.service.js";
 
 const formatSprint = (sprint) => ({
   ...sprint.toObject(),
@@ -8,23 +10,29 @@ const formatSprint = (sprint) => ({
   projectId: serializeId(sprint.projectId),
 });
 
-export const listSprints = async (projectId) => {
-  const query = projectId ? { projectId } : {};
+export const listSprints = async (projectId, requester) => {
+  const query = {};
+
+  if (projectId) {
+    await getProjectForRequester(projectId, requester, { lean: true });
+    query.projectId = projectId;
+  } else {
+    query.projectId = { $in: await getAccessibleProjectIds(requester) };
+  }
+
   const sprints = await Sprint.find(query).sort({ createdAt: -1 });
   return sprints.map(formatSprint);
 };
 
-export const getSprint = async (sprintId) => {
-  const sprint = await Sprint.findById(sprintId);
-  if (!sprint) {
-    throw new HttpError(404, "Sprint not found.");
-  }
+export const getSprint = async (sprintId, requester) => {
+  const { sprint } = await getSprintForRequester(sprintId, requester);
   return formatSprint(sprint);
 };
 
-export const createSprint = async (payload) => {
+export const createSprint = async (payload, requester) => {
+  const project = await getProjectForRequester(payload.projectId, requester, { requireManager: true });
   const sprint = await Sprint.create({
-    projectId: payload.projectId,
+    projectId: project._id,
     name: payload.name,
     goal: payload.goal ?? "",
     startDate: payload.startDate,
@@ -32,14 +40,20 @@ export const createSprint = async (payload) => {
     status: payload.status ?? "PLANNED",
     committedStoryPoints: Number(payload.committedStoryPoints ?? 0),
   });
+
+  publishLiveUpdate({
+    userIds: resolveProjectMemberIds(project),
+    channels: getSprintRealtimeChannels(project._id, sprint._id),
+    type: "sprint.created",
+    projectId: serializeId(project._id),
+    sprintId: serializeId(sprint._id),
+  });
+
   return formatSprint(sprint);
 };
 
-export const updateSprint = async (sprintId, updates) => {
-  const sprint = await Sprint.findById(sprintId);
-  if (!sprint) {
-    throw new HttpError(404, "Sprint not found.");
-  }
+export const updateSprint = async (sprintId, updates, requester) => {
+  const { sprint, project } = await getSprintForRequester(sprintId, requester, { requireManager: true });
 
   sprint.name = updates.name ?? sprint.name;
   sprint.goal = updates.goal ?? sprint.goal;
@@ -50,5 +64,14 @@ export const updateSprint = async (sprintId, updates) => {
     sprint.committedStoryPoints = Number(updates.committedStoryPoints);
   }
   await sprint.save();
+
+  publishLiveUpdate({
+    userIds: resolveProjectMemberIds(project),
+    channels: getSprintRealtimeChannels(project._id, sprint._id),
+    type: "sprint.updated",
+    projectId: serializeId(project._id),
+    sprintId: serializeId(sprint._id),
+  });
+
   return formatSprint(sprint);
 };

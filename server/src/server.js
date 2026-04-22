@@ -13,7 +13,9 @@ const startServer = async () => {
   }
 
   await connectDB();
-  await seedDatabase();
+  if (String(process.env.SEED_DATABASE ?? "").toLowerCase() === "true") {
+    await seedDatabase();
+  }
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });

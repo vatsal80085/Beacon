@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { optimizationApi, PRIORITY_META, STATUS_META, projectApi, taskApi } from "../api/axios.js";
+import { getApiErrorMessage, optimizationApi, PRIORITY_META, STATUS_META, projectApi, taskApi } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
 import Card from "../components/common/Card.jsx";
+import { useAuth } from "../hooks/useAuth.js";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { LIVE_CHANNELS } from "../realtime/liveChannels.js";
 import { statusToLabel } from "../utils/formatters.js";
 
 const ALL_ONGOING_SCOPE = "ONGOING";
@@ -33,6 +36,7 @@ const defaultTaskForm = {
 function Backlog() {
   const navigate = useNavigate();
   const { projectId: routeProjectId } = useParams();
+  const { user } = useAuth();
 
   const [selectedScope, setSelectedScope] = useState(routeProjectId ?? ALL_ONGOING_SCOPE);
   const [projects, setProjects] = useState([]);
@@ -48,6 +52,8 @@ function Backlog() {
   const [taskForm, setTaskForm] = useState(defaultTaskForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  const canManageBacklog = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   useEffect(() => {
     setSelectedScope(routeProjectId ?? ALL_ONGOING_SCOPE);
@@ -157,6 +163,11 @@ function Backlog() {
     };
   }, [loadBacklog]);
 
+  useLiveRefresh(loadBacklog, {
+    enabled: !loading,
+    channels: [LIVE_CHANNELS.backlog, LIVE_CHANNELS.projects],
+  });
+
   const actionableSprintsByProject = useMemo(() => {
     return Object.fromEntries(
       Object.entries(sprintsByProject).map(([projectId, sprints]) => {
@@ -240,6 +251,10 @@ function Backlog() {
   };
 
   const openEditTaskForm = (task) => {
+    if (!canManageBacklog) {
+      return;
+    }
+
     setShowTaskForm(true);
     setEditingTaskId(task.id);
     setTaskForm({
@@ -278,6 +293,12 @@ function Backlog() {
     setError("");
 
     try {
+      if (editingTaskId && !canManageBacklog) {
+        setError("Only managers can edit backlog story details.");
+        setSaving(false);
+        return;
+      }
+
       if (!taskForm.projectId) {
         setError("Select a project for this backlog story.");
         setSaving(false);
@@ -306,8 +327,8 @@ function Backlog() {
       await loadBacklog();
       setShowTaskForm(false);
       setEditingTaskId(null);
-    } catch {
-      setError("Task update failed.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Task update failed."));
     } finally {
       setSaving(false);
     }
@@ -320,8 +341,8 @@ function Backlog() {
       localStorage.setItem("beacon:lastProjectId", task.projectId);
       localStorage.setItem("beacon:lastSprintId", sprintId);
       await loadBacklog();
-    } catch {
-      setError("Could not plan this story into sprint.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Could not plan this story into sprint."));
     }
   };
 
@@ -330,8 +351,8 @@ function Backlog() {
       setError("");
       await taskApi.updateTask(taskId, { priority });
       await loadBacklog();
-    } catch {
-      setError("Could not update story priority.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Could not update story priority."));
     }
   };
 
@@ -340,8 +361,8 @@ function Backlog() {
       setError("");
       await taskApi.updateTaskStatus(taskId, status);
       await loadBacklog();
-    } catch {
-      setError("Could not update story status.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Could not update story status."));
     }
   };
 
@@ -358,8 +379,8 @@ function Backlog() {
         risk: task.risk ?? { score: 0.2, level: "LOW" },
       });
       await loadBacklog();
-    } catch {
-      setError("Could not clone this story.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Could not clone this story."));
     }
   };
 
@@ -373,8 +394,8 @@ function Backlog() {
       setError("");
       await taskApi.deleteTask(taskId);
       await loadBacklog();
-    } catch {
-      setError("Could not delete this story.");
+    } catch (taskError) {
+      setError(getApiErrorMessage(taskError, "Could not delete this story."));
     }
   };
 
@@ -636,6 +657,11 @@ function Backlog() {
         <p className="backlog-note">
           Planning into sprint means the story leaves backlog and appears in the selected sprint board as <strong>To Do</strong>.
         </p>
+        <p className="backlog-note">
+          {canManageBacklog
+            ? "Managers can edit story details, set priority, and plan backlog items into sprints."
+            : "Developers can add backlog stories and update status, but only managers can edit details, priority, planning, or delete stories."}
+        </p>
 
         <div className="backlog-list">
           {sortedTasks.map((task) => {
@@ -658,54 +684,62 @@ function Backlog() {
                   <span className={`badge ${PRIORITY_META[task.priority]?.className}`}>{task.priority}</span>
                   <span className={`badge ${STATUS_META[task.status]?.className ?? "status-muted"}`}>{statusToLabel(task.status)}</span>
 
-                  <Button type="button" variant="ghost" size="sm" onClick={() => openEditTaskForm(task)}>
-                    Edit
-                  </Button>
+                  {canManageBacklog ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => openEditTaskForm(task)}>
+                      Edit
+                    </Button>
+                  ) : null}
 
-                  <Button type="button" variant="ghost" size="sm" onClick={() => handleCloneTask(task)}>
-                    Clone
-                  </Button>
+                  {canManageBacklog ? (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleCloneTask(task)}>
+                      Clone
+                    </Button>
+                  ) : null}
 
-                  {activeSprint ? (
+                  {canManageBacklog && activeSprint ? (
                     <Button type="button" variant="secondary" size="sm" onClick={() => handlePlanStoryToSprint(task, activeSprint.id)}>
                       Plan To Active Sprint
                     </Button>
                   ) : null}
 
-                  {sprintOptions.length > 0 ? (
+                  {canManageBacklog ? (
+                    sprintOptions.length > 0 ? (
+                      <select
+                        className="filter-select"
+                        defaultValue=""
+                        onChange={(event) => {
+                          if (event.target.value) {
+                            handlePlanStoryToSprint(task, event.target.value);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>
+                          Plan Into Sprint
+                        </option>
+                        {sprintOptions.map((sprint) => (
+                          <option key={sprint.id} value={sprint.id}>
+                            {sprint.name} ({statusToLabel(sprint.status)})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="text-muted">No active/planned sprint</span>
+                    )
+                  ) : null}
+
+                  {canManageBacklog ? (
                     <select
                       className="filter-select"
-                      defaultValue=""
-                      onChange={(event) => {
-                        if (event.target.value) {
-                          handlePlanStoryToSprint(task, event.target.value);
-                        }
-                      }}
+                      value={task.priority}
+                      onChange={(event) => handlePriorityChange(task.id, event.target.value)}
                     >
-                      <option value="" disabled>
-                        Plan Into Sprint
-                      </option>
-                      {sprintOptions.map((sprint) => (
-                        <option key={sprint.id} value={sprint.id}>
-                          {sprint.name} ({statusToLabel(sprint.status)})
+                      {priorityOptions.map((priority) => (
+                        <option key={priority} value={priority}>
+                          Priority: {priority}
                         </option>
                       ))}
                     </select>
-                  ) : (
-                    <span className="text-muted">No active/planned sprint</span>
-                  )}
-
-                  <select
-                    className="filter-select"
-                    value={task.priority}
-                    onChange={(event) => handlePriorityChange(task.id, event.target.value)}
-                  >
-                    {priorityOptions.map((priority) => (
-                      <option key={priority} value={priority}>
-                        Priority: {priority}
-                      </option>
-                    ))}
-                  </select>
+                  ) : null}
 
                   <select
                     className="filter-select"
@@ -719,9 +753,11 @@ function Backlog() {
                     ))}
                   </select>
 
-                  <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteTask(task.id)}>
-                    Delete
-                  </Button>
+                  {canManageBacklog ? (
+                    <Button type="button" variant="danger" size="sm" onClick={() => handleDeleteTask(task.id)}>
+                      Delete
+                    </Button>
+                  ) : null}
                 </div>
               </article>
             );

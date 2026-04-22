@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { invitationApi } from "../../api/axios.js";
 import Button from "../common/Button.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh.js";
+import { buildUserChannel, LIVE_CHANNELS } from "../../realtime/liveChannels.js";
 
 const formatPathPart = (part) =>
   part
@@ -43,28 +45,40 @@ function Navbar() {
       .join("")
       .toUpperCase() ?? "U";
 
+  const loadInvites = useCallback(async () => {
+    if (!user?.id) {
+      setPendingInvites(0);
+      return;
+    }
+
+    const data = await invitationApi.getMyInvitations(user.id);
+    setPendingInvites(data.filter((invite) => invite.status === "PENDING").length);
+  }, [user]);
+
   useEffect(() => {
     let isMounted = true;
 
-    const loadInvites = async () => {
-      if (!user?.id) {
+    const syncPendingInvites = async () => {
+      try {
+        await loadInvites();
+      } catch {
         if (isMounted) {
           setPendingInvites(0);
         }
-        return;
-      }
-      const data = await invitationApi.getMyInvitations(user.id);
-      if (isMounted) {
-        setPendingInvites(data.filter((invite) => invite.status === "PENDING").length);
       }
     };
 
-    loadInvites();
+    syncPendingInvites();
 
     return () => {
       isMounted = false;
     };
-  }, [location.pathname, user?.id]);
+  }, [loadInvites, location.pathname]);
+
+  useLiveRefresh(loadInvites, {
+    enabled: Boolean(user?.id),
+    channels: [LIVE_CHANNELS.invitations, buildUserChannel(user?.id)],
+  });
 
   const handleLogout = () => {
     logout();

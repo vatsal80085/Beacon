@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { analyticsApi, optimizationApi, PRIORITY_META, sprintApi, STATUS_META, taskApi } from "../api/axios.js";
+import { analyticsApi, getApiErrorMessage, optimizationApi, PRIORITY_META, sprintApi, STATUS_META, taskApi } from "../api/axios.js";
 import Button from "../components/common/Button.jsx";
 import Card from "../components/common/Card.jsx";
+import { useAuth } from "../hooks/useAuth.js";
+import { useLiveRefresh } from "../hooks/useLiveRefresh.js";
+import { buildSprintChannel } from "../realtime/liveChannels.js";
 import { formatDate, formatPercent, statusToLabel } from "../utils/formatters.js";
 
 const columnOrder = ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"];
 
 function SprintView() {
   const { sprintId } = useParams();
+  const { user } = useAuth();
 
   const [sprint, setSprint] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [optimization, setOptimization] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskForm, setTaskForm] = useState({
     title: "",
@@ -30,6 +35,8 @@ function SprintView() {
   const [syncingInsights, setSyncingInsights] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [bulkCompleting, setBulkCompleting] = useState(false);
+
+  const canManageSprint = user?.role === "ADMIN" || user?.role === "MANAGER";
 
   const handleDragStart = (event, task) => {
     setDraggedTask(task);
@@ -125,7 +132,12 @@ function SprintView() {
 
     const initialize = async () => {
       try {
+        setError("");
         await loadSprint();
+      } catch {
+        if (isMounted) {
+          setError("Sprint could not be loaded. It may have been deleted or you may not have access.");
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -139,6 +151,11 @@ function SprintView() {
       isMounted = false;
     };
   }, [loadSprint]);
+
+  useLiveRefresh(loadSprint, {
+    enabled: Boolean(sprintId && !loading),
+    channels: [buildSprintChannel(sprintId)],
+  });
 
   const groupedTasks = useMemo(() => {
     return columnOrder.reduce((accumulator, status) => {
@@ -189,6 +206,8 @@ function SprintView() {
       });
       setShowTaskForm(false);
       await loadSprint();
+    } catch (taskError) {
+      showAlert(getApiErrorMessage(taskError, "Failed to add task to sprint."), "error");
     } finally {
       setSaving(false);
     }
@@ -211,9 +230,9 @@ function SprintView() {
     try {
       await taskApi.updateTaskStatus(taskId, nextStatus);
       await refreshInsights();
-    } catch {
+    } catch (taskError) {
       setTasks(previousTasks);
-      showAlert("Failed to move task to the selected section.", "error");
+      showAlert(getApiErrorMessage(taskError, "Failed to move task to the selected section."), "error");
     }
   };
 
@@ -230,9 +249,9 @@ function SprintView() {
       await Promise.all(remainingTaskIds.map((taskId) => taskApi.updateTaskStatus(taskId, "DONE")));
       await refreshInsights();
       showAlert("All open sprint tasks moved to Done.", "success");
-    } catch {
+    } catch (taskError) {
       setTasks(previousTasks);
-      showAlert("Failed to complete all open sprint tasks.", "error");
+      showAlert(getApiErrorMessage(taskError, "Failed to complete all open sprint tasks."), "error");
     } finally {
       setBulkCompleting(false);
     }
@@ -254,8 +273,8 @@ function SprintView() {
             ? "Sprint is active again."
             : "Sprint status updated.",
       );
-    } catch {
-      showAlert("Failed to update sprint status.", "error");
+    } catch (sprintError) {
+      showAlert(getApiErrorMessage(sprintError, "Failed to update sprint status."), "error");
     } finally {
       setStatusUpdating(false);
     }
@@ -271,11 +290,15 @@ function SprintView() {
     );
   }
 
-  if (!sprint || !analytics || !optimization) {
+  if (error || !sprint || !analytics || !optimization) {
     return (
       <div className="page">
         <Card title="Sprint unavailable" interactive={false}>
-          <p className="form-error">The requested sprint data could not be loaded.</p>
+          <p className="form-error">{error || "The requested sprint data could not be loaded."}</p>
+          <p className="text-muted" style={{ padding: "0 1rem 1rem" }}>
+            Go to <Link to="/app/sprints">Sprints</Link> to pick an existing sprint, or create one under{" "}
+            <Link to="/app/projects">Projects</Link>.
+          </p>
         </Card>
       </div>
     );
@@ -298,7 +321,7 @@ function SprintView() {
           <p className="page-subtitle">{sprint.goal}</p>
         </div>
         <div className="page-actions">
-          {sprint.status === "PLANNED" ? (
+          {canManageSprint && sprint.status === "PLANNED" ? (
             <Button
               type="button"
               variant="secondary"
@@ -309,7 +332,7 @@ function SprintView() {
               Start Sprint
             </Button>
           ) : null}
-          {sprint.status === "ACTIVE" ? (
+          {canManageSprint && sprint.status === "ACTIVE" ? (
             <Button
               type="button"
               variant="secondary"
@@ -320,7 +343,7 @@ function SprintView() {
               Mark Sprint Completed
             </Button>
           ) : null}
-          {sprint.status === "COMPLETED" ? (
+          {canManageSprint && sprint.status === "COMPLETED" ? (
             <Button
               type="button"
               variant="ghost"
@@ -331,7 +354,7 @@ function SprintView() {
               Reopen Sprint
             </Button>
           ) : null}
-          {sprint.status === "COMPLETED" && remainingTaskIds.length > 0 ? (
+          {canManageSprint && sprint.status === "COMPLETED" && remainingTaskIds.length > 0 ? (
             <Button
               type="button"
               variant="primary"
@@ -342,16 +365,22 @@ function SprintView() {
               Move Open Tasks To Done ({remainingTaskIds.length})
             </Button>
           ) : null}
-          <Button type="button" variant="primary" size="sm" onClick={() => setShowTaskForm((value) => !value)}>
-            {showTaskForm ? "Close Task Form" : "Add Sprint Task"}
-          </Button>
+          {canManageSprint ? (
+            <Button type="button" variant="primary" size="sm" onClick={() => setShowTaskForm((value) => !value)}>
+              {showTaskForm ? "Close Task Form" : "Add Sprint Task"}
+            </Button>
+          ) : null}
           <Button as={Link} to={`/app/projects/${sprint.projectId}`} variant="ghost" size="sm">
             Open Project
           </Button>
         </div>
       </div>
 
-      {showTaskForm ? (
+      {!canManageSprint ? (
+        <p className="backlog-note">Only managers can add sprint tasks or change sprint lifecycle. Developers can move task status only.</p>
+      ) : null}
+
+      {showTaskForm && canManageSprint ? (
         <Card title="Add Task To Sprint" subtitle="New tasks instantly affect sprint health and velocity." interactive={false}>
           <form className="entity-form" onSubmit={handleCreateTask}>
             <label htmlFor="sprint-task-title">Title</label>
